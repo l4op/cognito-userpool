@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Cognito User Pool
+
+Parameters:
+  CallbackUrl:
+    Type: String
+
+Resources:
+  
+  CognitoAuthorizerUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties: 
+      UserPoolName: cognito-user-pool-userpool
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      Policies:
+        PasswordPolicy:
+            MinimumLength: 8
+            RequireLowercase: true
+            RequireNumbers: true
+            RequireSymbols: true
+            RequireUppercase: true
+            TemporaryPasswordValidityDays: 7
+      AutoVerifiedAttributes:
+        - email
+      UsernameConfiguration:
+        CaseSensitive: true
+      UsernameAttributes:
+        - email
+      Schema:
+        - AttributeDataType: String
+          Mutable: true
+          Name: email
+          Required: true
+        - AttributeDataType: String
+          Mutable: true
+          Name: given_name
+          Required: true
+        - AttributeDataType: String
+          Mutable: true
+          Name: family_name
+          Required: true
+
+
+  CognitoAuthorizerUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties: 
+      AllowedOAuthFlows: 
+        - implicit
+      AllowedOAuthFlowsUserPoolClient: True
+      AllowedOAuthScopes: 
+        - email
+        - openid
+        - profile
+      CallbackURLs: 
+        - !Ref CallbackUrl
+      ClientName: cognito-user-pool-client
+      SupportedIdentityProviders: 
+        - COGNITO
+      UserPoolId: !Ref CognitoAuthorizerUserPool
+      GenerateSecret: true
+
+  CognitoAuthorizerUserPoolResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties: 
+      Identifier: MyAuthServer
+      Name: MyAuthServer
+      Scopes: 
+        - ScopeDescription: "Allow access to application"
+          ScopeName: user_access
+      UserPoolId: !Ref CognitoAuthorizerUserPool
+      
+  CognitoAuthorizerUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties: 
+      Domain: !Sub user-pool-domain-${AWS::AccountId}
+      UserPoolId: !Ref CognitoAuthorizerUserPool
+
+Outputs:
+
+  HostedUi:
+    Description: Hosted UI
+    Value: !Sub "https://${CognitoAuthorizerUserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${CognitoAuthorizerUserPoolClient}&response_type=token&scope=email+openid+profile&redirect_uri=${CallbackUrl}"
+
+  UserPoolId:
+    Description: "UserPool ID"
+    Value: !Ref CognitoAuthorizerUserPool
+    Export:
+      Name: 'UserPoolId'
+
+  UserPoolClientId:
+    Description: "UserPoolClient ID"
+    Value: !Ref CognitoAuthorizerUserPoolClient
+    Export:
+      Name: 'UserPoolClientId'
+  
+  UserPoolClientIdSecret:
+    Value:    
+      !GetAtt CognitoAuthorizerUserPoolClient.ClientSecret
